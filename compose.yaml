@@ -1,0 +1,51 @@
+name: modbus-dam-lab
+services:
+  device:
+    build:
+      context: .
+      dockerfile: services/device/Dockerfile
+    hostname: device
+    environment:
+      MODBUS_HOST: 0.0.0.0
+      MODBUS_PORT: "5020"
+      INITIAL_WATER_LEVEL: ${INITIAL_WATER_LEVEL:-65}
+      SIMULATION_STEP: "1"
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.20
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+  openplc:
+    build:
+      context: .
+      dockerfile: plc/Dockerfile
+    hostname: openplc
+    depends_on: [device]
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.10
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    ulimits:
+      memlock: 0
+    restart: unless-stopped
+  attacker:
+    build:
+      context: .
+      dockerfile: attacker/Dockerfile
+    hostname: attacker
+    entrypoint: [sleep, infinity]
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.30
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+networks:
+  modbus-lab:
+    internal: true
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.10.0/24
