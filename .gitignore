@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 .env
 captures/*.pcap*
+
+# Generated experiment data
+captures/experiments/
