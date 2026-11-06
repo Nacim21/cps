@@ -1,0 +1,10 @@
+services:
+  hmi:
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.40
+      hmi-access: {}
+
+networks:
+  hmi-access:
+    driver: bridge

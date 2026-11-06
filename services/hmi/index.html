@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HydroControl | Dam Simulation</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1220;--panel:#111d2e;--card:#17263b;--edge:#283953;--text:#eef6ff;--muted:#91a5bc;--aqua:#48d5c9;--blue:#5f9cfb;--amber:#f5bc64;--red:#f57581}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 5% 0%,#16344a 0%,transparent 35%),var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+    .app{max-width:1230px;margin:0 auto;padding:28px 22px 48px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:20px;padding-bottom:25px;border-bottom:1px solid var(--edge)}
+    .brand{display:flex;gap:13px;align-items:center}.brandmark{width:42px;height:42px;border-radius:14px;background:#143d4b;display:grid;place-items:center;font-size:24px;color:var(--aqua)}
+    h1{font-size:22px;letter-spacing:-.5px;margin:0}.overline{text-transform:uppercase;letter-spacing:2px;font-weight:700;font-size:10px;color:var(--aqua)}.sub{color:var(--muted);font-size:12px;margin-top:2px}
+    .status{display:flex;align-items:center;gap:9px;border:1px solid var(--edge);border-radius:999px;padding:8px 12px;background:#132033;font-size:12px;color:var(--muted)}.dot{width:8px;height:8px;background:var(--aqua);border-radius:50%;box-shadow:0 0 10px #48d5c966}.dot.off{background:var(--red);box-shadow:none}
+    .intro{display:flex;justify-content:space-between;align-items:end;margin:26px 0 19px;gap:10px;flex-wrap:wrap}.intro h2{font-size:24px;margin:0;letter-spacing:-.6px}.intro p{margin:4px 0 0;color:var(--muted);font-size:13px}
+    .grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:15px}.panel{background:linear-gradient(160deg,var(--panel),#101a29);border:1px solid var(--edge);border-radius:16px;padding:20px;min-width:0}.panel h3{font-size:14px;margin:0 0 15px;color:#d9e8f6}.eyebrow{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:1px}
+    .value{font-size:42px;letter-spacing:-2px;font-weight:750;line-height:1.2;margin:7px 0 5px}.unit{font-size:17px;color:var(--muted);letter-spacing:0}.big{font-size:33px;line-height:1.35;font-weight:700}.cyan{color:var(--aqua)}.blue{color:#94bfff}.muted{color:var(--muted)}
+    .track{height:10px;border-radius:10px;background:#26384b;overflow:hidden;margin:18px 0 10px}.fill{height:100%;width:0%;background:linear-gradient(90deg,#4090f6,#48d5c9);transition:width .7s}.fill.amber{background:linear-gradient(90deg,#d58c37,#f5bc64)}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:10px}.small{font-size:12px}.divider{height:1px;background:var(--edge);margin:17px 0}.bad{color:var(--red)}.good{color:var(--aqua)}
+    .wide{grid-column:span 2}.trend{height:140px;width:100%;background:#101e31;border-radius:10px;margin-top:14px;display:block;border:1px solid #263a50}.legend{display:flex;gap:18px;color:var(--muted);font-size:11px;margin-top:11px}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{padding:12px;border:1px solid var(--edge);border-radius:11px;background:#122037}.metric strong{display:block;font-size:23px;margin:5px 0 0}.tag{border-radius:999px;background:#183e3c;color:var(--aqua);padding:2px 9px;font-size:11px}.tag.warn{background:#432c27;color:var(--amber)}
+    .foot{margin-top:16px;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+    @media(max-width:940px){.grid{grid-template-columns:1fr 1fr}.panel:first-child{grid-column:span 2}}@media(max-width:620px){header{align-items:start;flex-direction:column}.grid{grid-template-columns:1fr}.panel:first-child,.wide{grid-column:auto}.metric-grid{grid-template-columns:1fr 1fr}.app{padding:18px 13px}.value{font-size:35px}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header><div class="brand"><div class="brandmark">≈</div><div><div class="overline">Cyber-Physical Systems Lab</div><h1>HydroControl <span class="muted">/ HMI</span></h1><div class="sub">OpenPLC v3 + Modbus TCP • Read-only monitoring</div></div></div><div class="status"><span id="overall-dot" class="dot off"></span><span id="overall">Connecting to lab…</span></div></header>
+  <div class="intro"><div><h2>Dam operations overview</h2><p>Live reservoir and inlet field-device telemetry</p></div><div class="small muted">Refreshed every 1.5 seconds · <span id="stamp">No data yet</span></div></div>
+  <main class="grid">
+    <section class="panel"><div class="row"><h3>Reservoir water level</h3><span id="reservoir-online" class="tag warn">OFFLINE</span></div><div class="value"><span id="level">--</span><span class="unit"> %</span></div><p class="muted small">Reported by Modbus reservoir sensor</p><div class="track"><div id="level-fill" class="fill"></div></div><div class="row small muted"><span>0% • Empty</span><span>70% • High threshold</span><span>100% • Full</span></div><svg class="trend" viewBox="0 0 560 140" preserveAspectRatio="none" role="img" aria-label="Water level history"><path d="M0 35H560M0 70H560M0 105H560" fill="none" stroke="#283e53" stroke-width="1"/><polyline id="trend" points="" fill="none" stroke="#48d5c9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg><div class="legend"><span style="color:var(--aqua)">●</span> Water level over the last 60 samples</div></section>
+    <section class="panel"><h3>Spillway gate</h3><div class="eyebrow">Actual position</div><div class="big blue"><span id="gate">--</span>%</div><div class="track"><div id="gate-fill" class="fill"></div></div><div class="divider"></div><div class="row small"><span class="muted">Requested by PLC</span><strong><span id="gate-desired">--</span>%</strong></div><div class="row small" style="margin-top:10px"><span class="muted">Gate mismatch</span><strong id="gate-mismatch">--</strong></div></section>
+    <section class="panel"><h3>Inlet valve • Device 2</h3><div class="eyebrow">Actual valve opening</div><div class="big cyan"><span id="inlet">--</span>%</div><div class="track"><div id="inlet-fill" class="fill amber"></div></div><div class="divider"></div><div class="row small"><span class="muted">Requested by PLC</span><strong><span id="inlet-desired">--</span>%</strong></div><div class="row small" style="margin-top:10px"><span class="muted">Inflow rate</span><strong><span id="flow">--</span> %/s</strong></div></section>
+    <section class="panel wide"><div class="row"><h3>OpenPLC internal state</h3><span class="small muted" id="plc-age">Awaiting telemetry</span></div><div class="metric-grid"><div class="metric"><div class="eyebrow">Scan counter</div><strong id="cycles">--</strong></div><div class="metric"><div class="eyebrow">High water alarm</div><strong id="alarm">--</strong></div><div class="metric"><div class="eyebrow">Gate mismatches</div><strong id="gate-count">--</strong></div><div class="metric"><div class="eyebrow">Inlet mismatches</div><strong id="inlet-count">--</strong></div><div class="metric"><div class="eyebrow">Current inlet mismatch</div><strong id="inlet-mismatch">--</strong></div><div class="metric"><div class="eyebrow">PLC status</div><strong id="plc-status">--</strong></div></div></section>
+    <section class="panel"><h3>System health</h3><div class="row small"><span>Reservoir Modbus</span><strong id="dev-health">Unknown</strong></div><div class="divider"></div><div class="row small"><span>Inlet Modbus</span><strong id="inlet-health">Unknown</strong></div><div class="divider"></div><div class="row small"><span>PLC telemetry</span><strong id="plc-health">Unknown</strong></div><div class="divider"></div><p class="muted small">This HMI is monitoring-only. All actuator commands originate from the isolated lab and its PLC control logic.</p></section>
+  </main><div class="foot"><span>Educational testbed • No industrial equipment attached</span><span>Port 8080 • Localhost only</span></div>
+</div>
+<script>
+const byId=id=>document.getElementById(id),history=[];
+const set=(id,v)=>{byId(id).textContent=v};
+const pct=(id,v)=>{byId(id).style.width=Math.max(0,Math.min(100,Number(v)||0))+'%'};
+const status=(id,good)=>{set(id,good?'ONLINE':'OFFLINE');byId(id).className='tag'+(good?'':' warn')};
+async function update(){
+  try{
+    const response=await fetch('/api/state',{cache:'no-store'});
+    if(!response.ok)throw new Error('Dashboard request failed');
+    const d=await response.json(),r=d.reservoir,i=d.inlet,p=d.plc,internal=p.internal||{};
+    set('stamp',new Date(d.timestamp).toLocaleTimeString());
+    status('reservoir-online',r.online);
+    set('dev-health',r.online?'Connected':'Disconnected');set('inlet-health',i.online?'Connected':'Disconnected');set('plc-health',p.online?'Receiving':'Unavailable');
+    if(r.online){set('level',r.level_pct.toFixed(2));set('gate',r.gate_pct);set('gate-desired',r.gate_command_pct);pct('level-fill',r.level_pct);pct('gate-fill',r.gate_pct);history.push(r.level_pct);if(history.length>60)history.shift();const span=Math.max(1,history.length-1);byId('trend').setAttribute('points',history.map((v,j)=>(j*560/span).toFixed(2)+','+(130-v*1.2).toFixed(2)).join(' '))}
+    if(i.online){set('inlet',i.valve_pct);set('inlet-desired',i.valve_command_pct);set('flow',i.inflow_pct_per_s.toFixed(3));pct('inlet-fill',i.valve_pct)}
+    set('gate-mismatch',p.online?(internal.mismatch?'YES':'NO'):'--');set('inlet-mismatch',p.online?(internal.inlet_mismatch?'YES':'NO'):'--');
+    set('cycles',p.online?internal.cycle:'--');set('alarm',p.online?(internal.alarm?'ACTIVE':'CLEAR'):'--');set('gate-count',p.online?internal.mismatch_count:'--');set('inlet-count',p.online?internal.inlet_mismatch_count:'--');
+    set('plc-status',p.online?'Running':'Offline');set('plc-age',p.age_seconds===null?'No PLC telemetry':p.age_seconds+'s since last PLC update');
+    const healthy=r.online&&i.online&&p.online;set('overall',healthy?'Lab connected':'Some services unavailable');byId('overall-dot').className='dot'+(healthy?'':' off');
+  }catch(error){set('overall','Cannot reach HMI API');byId('overall-dot').className='dot off'}
+}
+update();setInterval(update,1500);
+</script>
+</body></html>

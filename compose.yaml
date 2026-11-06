@@ -10,9 +10,26 @@ services:
       MODBUS_PORT: "5020"
       INITIAL_WATER_LEVEL: ${INITIAL_WATER_LEVEL:-65}
       SIMULATION_STEP: "1"
+      INLET_HOST: inlet
+      INLET_PORT: "5020"
+    depends_on: [inlet]
     networks:
       modbus-lab:
         ipv4_address: 172.28.10.20
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+  inlet:
+    build:
+      context: .
+      dockerfile: services/inlet/Dockerfile
+    hostname: inlet
+    environment:
+      MODBUS_HOST: 0.0.0.0
+      MODBUS_PORT: "5020"
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.21
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     restart: unless-stopped
@@ -21,7 +38,7 @@ services:
       context: .
       dockerfile: plc/Dockerfile
     hostname: openplc
-    depends_on: [device]
+    depends_on: [device, inlet]
     networks:
       modbus-lab:
         ipv4_address: 172.28.10.10
@@ -29,6 +46,26 @@ services:
     security_opt: ["no-new-privileges:true"]
     ulimits:
       memlock: 0
+    restart: unless-stopped
+  hmi:
+    build:
+      context: .
+      dockerfile: services/hmi/Dockerfile
+    hostname: hmi
+    environment:
+      DEVICE_HOST: device
+      INLET_HOST: inlet
+      HMI_HOST: 0.0.0.0
+      HMI_PORT: "8080"
+      TELEMETRY_PORT: "10555"
+    depends_on: [device, inlet]
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.40
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     restart: unless-stopped
   attacker:
     build:

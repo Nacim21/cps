@@ -1,4 +1,5 @@
 import asyncio
+import os
 from collections import deque
 from datetime import datetime, timezone
 from pymodbus.datastore import ModbusSequentialDataBlock, ModbusSlaveContext, ModbusServerContext
@@ -6,11 +7,12 @@ from pymodbus.server import StartAsyncTcpServer
 from pymodbus.register_write_message import WriteSingleRegisterRequest, WriteMultipleRegistersRequest
 from shared.register_map import encode_level
 from shared.logging_utils import log
+from services.device.inlet_link import read_inlet_percent, pct_to_inflow
 
 class GateWrite(WriteSingleRegisterRequest):
     async def execute(self, context):
         if not 0 <= self.value <= 100:
-            return self.doException(3)  # Illegal Data Value
+            return self.doException(3)
         return await super().execute(context)
 
 class GateMultiWrite(WriteMultipleRegistersRequest):
@@ -47,12 +49,28 @@ class DeviceContext(ModbusSlaveContext):
         super().setValues(2, 0, [self.reservoir.actual_level > 90])
 
 async def simulate(context, dt):
+    inlet_host = os.getenv("INLET_HOST", "")
+    inlet_port = int(os.getenv("INLET_PORT", "5020"))
+    inlet_status = None
+    inlet_pct = 100
     while True:
         await asyncio.sleep(dt)
+        if inlet_host:
+            # Synchronous PyModbus is isolated in a worker thread to avoid
+            # blocking the async field-device server while polling the inlet.
+            observed = await asyncio.to_thread(read_inlet_percent, inlet_host, inlet_port)
+            connected = observed is not None
+            inlet_pct = observed if connected else 0  # fail closed on lost inlet node
+            context.reservoir.inflow = pct_to_inflow(inlet_pct)
+            if connected != inlet_status:
+                log("DEVICE", "inlet_link", connected=connected, valve=inlet_pct)
+                inlet_status = connected
         context.reservoir.step(dt)
         context.refresh()
         log("DEVICE", "physics", actual_level=context.reservoir.actual_level,
-            reported_level=context.reservoir.reported_level, gate=context.reservoir.gate)
+            reported_level=context.reservoir.reported_level, gate=context.reservoir.gate,
+            inlet_valve=inlet_pct, inlet_connected=(inlet_status if inlet_host else None),
+            inflow=context.reservoir.inflow)
 
 def trace(request, *addr):
     log("DEVICE", "modbus_request", source=str(addr) if any(addr) else None, function=request.function_code,

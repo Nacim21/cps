@@ -1,4 +1,4 @@
-// Executes MatIEC-generated ST code with test input images, not a PLC replacement.
+// Executes MatIEC-generated ST code with supplied inputs, not a PLC replacement.
 #include <assert.h>
 #include <stdio.h>
 #include "iec_std_lib.h"
@@ -13,24 +13,35 @@ int main() {
     config_init__();
     const int levels[] = {0,3999,4000,6500,7000,7001,9000,9001,10000};
     const int gates[]  = {0,0,25,25,25,75,75,100,100};
+    const int inlet[]  = {100,100,100,100,100,50,50,0,0};
     for (unsigned i=0; i<9; ++i) {
         *__IW100 = levels[i]; *__IW101 = gates[i];
+        *__IW102 = inlet[i]; *__IW103 = inlet[i] * 250 / 100;
         config_run__(i);
-        assert(*__QW100 == gates[i]);
+        assert(*__QW100 == gates[i] && *__QW101 == inlet[i]);
         assert(*__MW0 == levels[i]);
-        assert(*__MW1 == gates[i]);
-        assert(*__MW2 == gates[i]);
+        assert(*__MW1 == gates[i] && *__MW2 == gates[i]);
         assert(*__MW3 == (levels[i] > 9000));
-        assert(*__MW4 == 0);
+        assert(*__MW4 == 0 && *__MW10 == 0);
+        assert(*__MW7 == inlet[i] && *__MW8 == inlet[i]);
+        assert(*__MW9 == inlet[i] * 250 / 100);
     }
-    *__IW100 = 6500; *__IW101 = 100;
+    *__IW100 = 6500; *__IW101 = 100; *__IW102 = 100;
     config_run__(9);
-    assert(*__QW100 == 25 && *__MW4 == 1 && *__MW5 == 1);
+    assert(*__QW100 == 25 && *__QW101 == 100 && *__MW4 == 1 && *__MW5 == 1);
     config_run__(10);
     assert(*__MW5 == 1);
     *__IW101 = 25; config_run__(11);
     assert(*__MW4 == 0);
     *__IW101 = 100; config_run__(12);
     assert(*__MW5 == 2 && *__MW6 == 13);
-    puts("PASS: compiled ST thresholds, mapped I/O, alarm, cyclic output and mismatch counter");
+    *__IW101 = 25; *__IW102 = 0; config_run__(13);
+    assert(*__MW10 == 1 && *__MW11 == 1);
+    config_run__(14);
+    assert(*__MW11 == 1);
+    *__IW102 = 100; config_run__(15);
+    assert(*__MW10 == 0);
+    *__IW102 = 0; config_run__(16);
+    assert(*__MW11 == 2);
+    puts("PASS: dual-device mapped I/O, spillway thresholds, inlet thresholds, alarms and mismatch counters");
 }
