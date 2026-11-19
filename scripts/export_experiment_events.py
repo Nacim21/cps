@@ -16,7 +16,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENTS = ROOT / "captures" / "experiments"
-SERVICES = ("openplc", "device", "inlet", "attacker", "hmi")
+SERVICES = ("openplc", "openplc-inlet", "device", "inlet", "attacker", "hmi")
 
 
 def utc_datetime(value: str) -> datetime:

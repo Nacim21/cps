@@ -21,7 +21,7 @@ from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 HMI = "http://127.0.0.1:8080/api/state"
-SERVICES = ("inlet", "device", "openplc", "hmi", "attacker")
+SERVICES = ("inlet", "device", "openplc", "openplc-inlet", "hmi", "attacker")
 
 
 def parse_args(argv=None):
@@ -142,7 +142,7 @@ def main(argv=None):
     subprocess.run(["docker", "compose", "config", "--quiet"], cwd=ROOT,
                    env=environment, check=True)
 
-    # All five services must be newly created: this resets PLC counters, field
+    # All six services must be newly created: this resets PLC counters, field
     # device memory, and HMI's cached UDP telemetry, not just reservoir physics.
     # `--no-build` prevents an expensive rebuild and keeps the software version
     # identical across repeated trials. Existing images must already exist.
@@ -150,7 +150,7 @@ def main(argv=None):
                "--force-recreate", *SERVICES]
     print("Recreating isolated lab services without deleting captures...", flush=True)
     subprocess.run(command, cwd=ROOT, env=environment, check=True)
-    print("Checking both Modbus devices and PLC progress via HMI...", flush=True)
+    print("Checking Modbus devices and both PLCs via HMI...", flush=True)
     baseline = wait_for_baseline(args.initial_level, args.level_tolerance,
                                  args.timeout)
 

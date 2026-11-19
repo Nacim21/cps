@@ -47,6 +47,22 @@ services:
     ulimits:
       memlock: 0
     restart: unless-stopped
+  openplc-inlet:
+    build:
+      context: .
+      dockerfile: plc/Dockerfile
+      args:
+        PLC_ROLE: inlet
+    hostname: openplc-inlet
+    depends_on: [device, inlet]
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.11
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    ulimits:
+      memlock: 0
+    restart: unless-stopped
   hmi:
     build:
       context: .
@@ -58,7 +74,7 @@ services:
       HMI_HOST: 0.0.0.0
       HMI_PORT: "8080"
       TELEMETRY_PORT: "10555"
-    depends_on: [device, inlet]
+    depends_on: [device, inlet, openplc, openplc-inlet]
     ports:
       - "127.0.0.1:8080:8080"
     networks:
