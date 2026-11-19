@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_spillway_owns_gate_not_inlet():
     config = (ROOT / "plc/config/mbconfig.cfg").read_text()
     st = (ROOT / "plc/spillway.st").read_text()
-    assert 'Num_Devices = "1"' in config
+    assert 'Num_Devices = "2"' in config
     assert 'device0.Holding_Registers_Size = "1"' in config
     assert 'device0.address = "172.28.10.20"' in config
     assert 'GateCommand AT %QW100' in st

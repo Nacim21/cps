@@ -16,7 +16,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENTS = ROOT / "captures" / "experiments"
-SERVICES = ("openplc", "openplc-inlet", "openplc-temp", "device", "inlet", "temperature-sensor", "attacker", "hmi")
+SERVICES = ("openplc", "openplc-inlet", "openplc-temp", "openplc-supervisor", "device", "inlet", "temperature-sensor", "attacker", "hmi")
 
 
 def utc_datetime(value: str) -> datetime:
@@ -62,6 +62,10 @@ def classify_event(item: dict) -> tuple[str, str | None]:
         if signal == "high_water_alarm" and current == 1:
             return "plc_transition", "High-water alarm activated"
         return "plc_transition", None
+    if event == "decision_transition":
+        return "supervisor_decision", None
+    if event == "temperature_transition":
+        return "temperature_transition", None
     if event == "plc_monitor_started":
         return "monitoring", None
     if event == "st_state":

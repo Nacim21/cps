@@ -21,7 +21,7 @@ from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 HMI = "http://127.0.0.1:8080/api/state"
-SERVICES = ("inlet", "device", "temperature-sensor", "openplc", "openplc-inlet", "openplc-temp", "hmi", "attacker")
+SERVICES = ("inlet", "device", "temperature-sensor", "openplc", "openplc-inlet", "openplc-temp", "openplc-supervisor", "hmi", "attacker")
 
 
 def parse_args(argv=None):
@@ -69,6 +69,16 @@ def baseline_ready(data, requested_level=65.0, tolerance=5.0):
         if not temperature["online"] or not temperature_plc["online"]:
             return False
         if not temperature_plc["internal"] or temperature_plc["internal"].get("peer_fresh") != 1:
+            return False
+        supervisor = data["plcs"]["supervisor"]
+        if not supervisor["online"] or not supervisor["internal"]:
+            return False
+        si = supervisor["internal"]
+        if si.get("decision_valid") != 1 or si.get("healthy_peer_count") != 3:
+            return False
+        if si.get("selected_gate_pct") != reservoir["gate_command_pct"]:
+            return False
+        if data["plcs"]["spillway"]["internal"].get("supervisor_fresh") != 1:
             return False
         if not (reservoir["online"] and inlet["online"] and plc["online"]):
             return False
@@ -148,7 +158,7 @@ def main(argv=None):
     subprocess.run(["docker", "compose", "config", "--quiet"], cwd=ROOT,
                    env=environment, check=True)
 
-    # All eight services must be newly created: this resets PLC counters, field
+    # All nine services must be newly created: this resets PLC counters, field
     # device memory, and HMI's cached UDP telemetry, not just reservoir physics.
     # `--no-build` prevents an expensive rebuild and keeps the software version
     # identical across repeated trials. Existing images must already exist.
@@ -156,7 +166,7 @@ def main(argv=None):
                "--force-recreate", *SERVICES]
     print("Recreating isolated lab services without deleting captures...", flush=True)
     subprocess.run(command, cwd=ROOT, env=environment, check=True)
-    print("Checking Modbus devices and both PLCs via HMI...", flush=True)
+    print("Checking Modbus devices and four PLCs via HMI...", flush=True)
     baseline = wait_for_baseline(args.initial_level, args.level_tolerance,
                                  args.timeout)
 
@@ -184,7 +194,7 @@ def main(argv=None):
     }
     output = run_dir / "baseline.json"
     output.write_text(json.dumps(details, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(f"PASS: healthy three-PLC baseline at {baseline['reservoir']['level_pct']}%")
+    print(f"PASS: healthy four-PLC baseline at {baseline['reservoir']['level_pct']}%")
     print(f"Experiment ID: {run_id}")
     print(f"Saved baseline: {output}")
     print("Run your next experiment now; repeat this reset before the next trial.")

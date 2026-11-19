@@ -11,7 +11,13 @@ def sample():
                       "gate_pct": 25, "gate_command_pct": 25},
         "inlet": {"online": True, "valve_pct": 100, "valve_command_pct": 100},
         "temperature": {"online": True, "temperature_c": 24.0, "alarm_threshold_c": 32.0},
-        "plcs": {"temperature": {"online": True, "internal": {"peer_fresh": 1}}},
+        "plcs": {
+            "temperature": {"online": True, "internal": {"peer_fresh": 1}},
+            "spillway": {"online": True, "internal": {"supervisor_fresh": 1}},
+            "supervisor": {"online": True, "internal": {
+                "decision_valid": 1, "healthy_peer_count": 3,
+                "selected_gate_pct": 25}},
+        },
         "plc": {"online": True, "age_seconds": .3,
                 "internal": {"event": "st_state", "cycle": 80, "desired": 25,
                              "inlet_desired": 100, "mismatch": 0,

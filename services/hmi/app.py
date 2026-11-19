@@ -19,7 +19,7 @@ INLET_HOST = os.getenv("INLET_HOST", "inlet")
 TEMPERATURE_HOST = os.getenv("TEMPERATURE_HOST", "temperature-sensor")
 TELEMETRY_PORT = int(os.getenv("TELEMETRY_PORT", "10555"))
 STATE_LOCK = Lock()
-LATEST_PLC = {role: {"payload": None, "last_received": 0.0} for role in ("spillway", "inlet", "temperature")}
+LATEST_PLC = {role: {"payload": None, "last_received": 0.0} for role in ("spillway", "inlet", "temperature", "supervisor")}
 STATIC = Path(__file__).with_name("index.html")
 
 
@@ -73,12 +73,12 @@ def snapshot():
                      valve_command_pct=inlet_raw["command"])
     with STATE_LOCK:
         data = {role: (dict(LATEST_PLC[role]["payload"]) if LATEST_PLC[role]["payload"] else None)
-                for role in ("spillway", "inlet", "temperature")}
+                for role in ("spillway", "inlet", "temperature", "supervisor")}
         ages = {role: (monotonic() - LATEST_PLC[role]["last_received"] if data[role] else None)
-                for role in ("spillway", "inlet", "temperature")}
+                for role in ("spillway", "inlet", "temperature", "supervisor")}
     status = {role: {"online": data[role] is not None and ages[role] < 4.0,
                      "age_seconds": round(ages[role], 2) if ages[role] is not None else None,
-                     "internal": data[role]} for role in ("spillway", "inlet", "temperature")}
+                     "internal": data[role]} for role in ("spillway", "inlet", "temperature", "supervisor")}
     combined = dict(data["spillway"]) if data["spillway"] else None
     if combined is not None and data["inlet"] is not None:
         for key in ("inlet_desired", "inlet_actual", "inlet_flow_milli",
@@ -103,7 +103,8 @@ def receive_plc():
         sock.bind(("0.0.0.0", TELEMETRY_PORT))
         trusted = {"172.28.10.10": ("spillway", "OPENPLC"),
                    "172.28.10.11": ("inlet", "OPENPLC_INLET"),
-                   "172.28.10.12": ("temperature", "OPENPLC_TEMP")}
+                   "172.28.10.12": ("temperature", "OPENPLC_TEMP"),
+                   "172.28.10.13": ("supervisor", "OPENPLC_SUPERVISOR")}
         while True:
             payload, peer = sock.recvfrom(2048)
             identity = trusted.get(peer[0])

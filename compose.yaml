@@ -96,6 +96,22 @@ services:
     ulimits:
       memlock: 0
     restart: unless-stopped
+  openplc-supervisor:
+    build:
+      context: .
+      dockerfile: plc/Dockerfile
+      args:
+        PLC_ROLE: supervisor
+    hostname: openplc-supervisor
+    depends_on: [openplc, openplc-inlet, openplc-temp]
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.13
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    ulimits:
+      memlock: 0
+    restart: unless-stopped
   hmi:
     build:
       context: .
@@ -108,7 +124,7 @@ services:
       HMI_HOST: 0.0.0.0
       HMI_PORT: "8080"
       TELEMETRY_PORT: "10555"
-    depends_on: [device, inlet, temperature-sensor, openplc, openplc-inlet, openplc-temp]
+    depends_on: [device, inlet, temperature-sensor, openplc, openplc-inlet, openplc-temp, openplc-supervisor]
     ports:
       - "127.0.0.1:8080:8080"
     networks:
