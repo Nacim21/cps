@@ -12,4 +12,7 @@ esac
 cp "$config" /opt/openplc/webserver/mbconfig.cfg
 cd /opt/openplc/webserver
 printf '{"component":"OPENPLC","event":"runtime_start","plc_role":"%s"}\n' "${PLC_ROLE:-spillway}"
+if [ "${PLC_ROLE:-spillway}" = "spillway" ]; then
+  sh /lab/start_modbus.sh &
+fi
 exec ./core/openplc

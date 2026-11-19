@@ -14,7 +14,7 @@ def test_spillway_owns_gate_not_inlet():
 def test_independent_inlet_owns_only_valve():
     config = (ROOT / "plc/config/mbconfig-inlet.cfg").read_text()
     st = (ROOT / "plc/inlet.st").read_text()
-    assert 'Num_Devices = "2"' in config
+    assert 'Num_Devices = "3"' in config
     assert 'device0.Input_Registers_Size = "1"' in config
     assert 'device0.Holding_Registers_Size = "0"' in config
     assert 'device1.Input_Registers_Size = "2"' in config

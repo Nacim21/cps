@@ -26,15 +26,15 @@ static void publish(const char *payload) {
 }
 
 void updateBuffersOut() {
-    unsigned values[7] = {};
+    unsigned values[12] = {};
     pthread_mutex_lock(&bufferLock);
-    for (int i = 0; i < 7; ++i) {
+    for (int i = 0; i < 12; ++i) {
         if (int_memory[i]) values[i] = *int_memory[i];
     }
     pthread_mutex_unlock(&bufferLock);
 
     static bool initialized = false;
-    static unsigned previous[7] = {};
+    static unsigned previous[12] = {};
     const char* signals[] = {"level", "inlet_desired", "inlet_actual", "inlet_flow_milli",
                              "inlet_mismatch", "inlet_mismatch_count"};
     if (!initialized) {
@@ -57,14 +57,17 @@ void updateBuffersOut() {
     static time_t last_second = 0;
     if (ts.tv_sec != last_second) {
         last_second = ts.tv_sec;
-        char payload[512];
+        char payload[800];
         snprintf(payload, sizeof(payload),
             "{\"timestamp_epoch\":%ld,\"component\":\"OPENPLC_INLET\",\"event\":\"st_state\","
             "\"level_raw\":%u,\"inlet_desired\":%u,\"inlet_actual\":%u,"
             "\"inlet_flow_milli\":%u,\"inlet_mismatch\":%u,"
-            "\"inlet_mismatch_count\":%u,\"cycle\":%u}",
+            "\"inlet_mismatch_count\":%u,\"cycle\":%u,"
+            "\"peer_gate_desired\":%u,\"peer_alarm\":%u,"
+            "\"peer_fresh\":%u,\"peer_stale_ticks\":%u,\"peer_heartbeat\":%u}",
             (long)ts.tv_sec, values[0], values[1], values[2], values[3],
-            values[4], values[5], values[6]);
+            values[4], values[5], values[6], values[7], values[8], values[9],
+            values[10], values[11]);
         puts(payload);
         publish(payload);
     }

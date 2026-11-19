@@ -8,7 +8,7 @@ COPY plc/spillway.st plc/inlet.st plc/telemetry.cpp plc/telemetry-inlet.cpp plc/
 COPY tests/st_harness.cpp tests/inlet_harness.cpp /lab/
 RUN bash /lab/build-runtime.sh
 COPY plc/config/mbconfig.cfg plc/config/mbconfig-inlet.cfg /lab/
-COPY plc/entrypoint.sh /lab/entrypoint.sh
+COPY plc/entrypoint.sh plc/start_modbus.sh /lab/
 RUN chmod +x /lab/entrypoint.sh && chown -R 10001:10001 /opt/openplc/webserver
 USER 10001:10001
 WORKDIR /opt/openplc/webserver
