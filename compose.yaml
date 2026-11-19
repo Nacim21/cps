@@ -63,6 +63,39 @@ services:
     ulimits:
       memlock: 0
     restart: unless-stopped
+  temperature-sensor:
+    build:
+      context: .
+      dockerfile: services/temperature/Dockerfile
+    hostname: temperature-sensor
+    environment:
+      MODBUS_HOST: 0.0.0.0
+      MODBUS_PORT: "5020"
+      INITIAL_WATER_TEMP_C: ${INITIAL_WATER_TEMP_C:-24.0}
+      WATER_TEMP_ALARM_C: ${WATER_TEMP_ALARM_C:-32.0}
+      WATER_TEMP_DRIFT_C_PER_S: ${WATER_TEMP_DRIFT_C_PER_S:-0.0}
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.22
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+  openplc-temp:
+    build:
+      context: .
+      dockerfile: plc/Dockerfile
+      args:
+        PLC_ROLE: temperature
+    hostname: openplc-temp
+    depends_on: [temperature-sensor, openplc]
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.12
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    ulimits:
+      memlock: 0
+    restart: unless-stopped
   hmi:
     build:
       context: .
@@ -71,10 +104,11 @@ services:
     environment:
       DEVICE_HOST: device
       INLET_HOST: inlet
+      TEMPERATURE_HOST: temperature-sensor
       HMI_HOST: 0.0.0.0
       HMI_PORT: "8080"
       TELEMETRY_PORT: "10555"
-    depends_on: [device, inlet, openplc, openplc-inlet]
+    depends_on: [device, inlet, temperature-sensor, openplc, openplc-inlet, openplc-temp]
     ports:
       - "127.0.0.1:8080:8080"
     networks:

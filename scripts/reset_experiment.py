@@ -21,7 +21,7 @@ from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 HMI = "http://127.0.0.1:8080/api/state"
-SERVICES = ("inlet", "device", "openplc", "openplc-inlet", "hmi", "attacker")
+SERVICES = ("inlet", "device", "temperature-sensor", "openplc", "openplc-inlet", "openplc-temp", "hmi", "attacker")
 
 
 def parse_args(argv=None):
@@ -64,6 +64,12 @@ def baseline_ready(data, requested_level=65.0, tolerance=5.0):
     """
     try:
         reservoir, inlet, plc = data["reservoir"], data["inlet"], data["plc"]
+        temperature = data["temperature"]
+        temperature_plc = data["plcs"]["temperature"]
+        if not temperature["online"] or not temperature_plc["online"]:
+            return False
+        if not temperature_plc["internal"] or temperature_plc["internal"].get("peer_fresh") != 1:
+            return False
         if not (reservoir["online"] and inlet["online"] and plc["online"]):
             return False
         if plc["age_seconds"] is None or plc["age_seconds"] > 3.5:
@@ -142,7 +148,7 @@ def main(argv=None):
     subprocess.run(["docker", "compose", "config", "--quiet"], cwd=ROOT,
                    env=environment, check=True)
 
-    # All six services must be newly created: this resets PLC counters, field
+    # All eight services must be newly created: this resets PLC counters, field
     # device memory, and HMI's cached UDP telemetry, not just reservoir physics.
     # `--no-build` prevents an expensive rebuild and keeps the software version
     # identical across repeated trials. Existing images must already exist.
@@ -178,7 +184,7 @@ def main(argv=None):
     }
     output = run_dir / "baseline.json"
     output.write_text(json.dumps(details, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(f"PASS: healthy dual-device PLC baseline at {baseline['reservoir']['level_pct']}%")
+    print(f"PASS: healthy three-PLC baseline at {baseline['reservoir']['level_pct']}%")
     print(f"Experiment ID: {run_id}")
     print(f"Saved baseline: {output}")
     print("Run your next experiment now; repeat this reset before the next trial.")

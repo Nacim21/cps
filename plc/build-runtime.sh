@@ -38,6 +38,12 @@ case "${PLC_ROLE:-spillway}" in
     harness=inlet_harness.cpp
     program=InletController
     ;;
+  temperature)
+    st_name=temperature
+    telemetry_file=telemetry-temperature.cpp
+    harness=temperature_harness.cpp
+    program=TemperatureController
+    ;;
   *) echo "Unknown PLC_ROLE: ${PLC_ROLE}" >&2; exit 1 ;;
 esac
 cp "/lab/${telemetry_file}" core/hardware_layer.cpp

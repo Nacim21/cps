@@ -16,9 +16,10 @@ from pymodbus.client import ModbusTcpClient
 
 DEVICE_HOST = os.getenv("DEVICE_HOST", "device")
 INLET_HOST = os.getenv("INLET_HOST", "inlet")
+TEMPERATURE_HOST = os.getenv("TEMPERATURE_HOST", "temperature-sensor")
 TELEMETRY_PORT = int(os.getenv("TELEMETRY_PORT", "10555"))
 STATE_LOCK = Lock()
-LATEST_PLC = {role: {"payload": None, "last_received": 0.0} for role in ("spillway", "inlet")}
+LATEST_PLC = {role: {"payload": None, "last_received": 0.0} for role in ("spillway", "inlet", "temperature")}
 STATIC = Path(__file__).with_name("index.html")
 
 
@@ -39,9 +40,27 @@ def read_device(host, number):
         client.close()
 
 
+def read_temperature():
+    """FC04 only. Never send writes to the temperature sensor."""
+    client = ModbusTcpClient(TEMPERATURE_HOST, port=5020, timeout=0.6)
+    try:
+        if not client.connect():
+            return {"online": False, "error": "Connection unavailable"}
+        result = client.read_input_registers(0, count=2, slave=1)
+        if result.isError():
+            return {"online": False, "error": "Modbus exception"}
+        return {"online": True, "temperature_c": result.registers[0] / 100.0,
+                "alarm_threshold_c": result.registers[1] / 100.0}
+    except Exception as exc:
+        return {"online": False, "error": type(exc).__name__}
+    finally:
+        client.close()
+
+
 def snapshot():
     reservoir_raw = read_device(DEVICE_HOST, 2)
     inlet_raw = read_device(INLET_HOST, 2)
+    temperature = read_temperature()
     reservoir = {"online": reservoir_raw["online"]}
     inlet = {"online": inlet_raw["online"]}
     if reservoir_raw["online"]:
@@ -54,12 +73,12 @@ def snapshot():
                      valve_command_pct=inlet_raw["command"])
     with STATE_LOCK:
         data = {role: (dict(LATEST_PLC[role]["payload"]) if LATEST_PLC[role]["payload"] else None)
-                for role in ("spillway", "inlet")}
+                for role in ("spillway", "inlet", "temperature")}
         ages = {role: (monotonic() - LATEST_PLC[role]["last_received"] if data[role] else None)
-                for role in ("spillway", "inlet")}
+                for role in ("spillway", "inlet", "temperature")}
     status = {role: {"online": data[role] is not None and ages[role] < 4.0,
                      "age_seconds": round(ages[role], 2) if ages[role] is not None else None,
-                     "internal": data[role]} for role in ("spillway", "inlet")}
+                     "internal": data[role]} for role in ("spillway", "inlet", "temperature")}
     combined = dict(data["spillway"]) if data["spillway"] else None
     if combined is not None and data["inlet"] is not None:
         for key in ("inlet_desired", "inlet_actual", "inlet_flow_milli",
@@ -71,6 +90,7 @@ def snapshot():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "reservoir": reservoir,
         "inlet": inlet,
+        "temperature": temperature,
         "plc": {"online": both_online,
                 "age_seconds": round(max(observed_ages), 2) if observed_ages else None,
                 "internal": combined},
@@ -82,7 +102,8 @@ def receive_plc():
     with socket(AF_INET, SOCK_DGRAM) as sock:
         sock.bind(("0.0.0.0", TELEMETRY_PORT))
         trusted = {"172.28.10.10": ("spillway", "OPENPLC"),
-                   "172.28.10.11": ("inlet", "OPENPLC_INLET")}
+                   "172.28.10.11": ("inlet", "OPENPLC_INLET"),
+                   "172.28.10.12": ("temperature", "OPENPLC_TEMP")}
         while True:
             payload, peer = sock.recvfrom(2048)
             identity = trusted.get(peer[0])
