@@ -11,7 +11,12 @@ def sample():
                       "gate_pct": 25, "gate_command_pct": 25},
         "inlet": {"online": True, "valve_pct": 100, "valve_command_pct": 100},
         "temperature": {"online": True, "temperature_c": 24.0, "alarm_threshold_c": 32.0},
+        "downstream": {"online": True, "flow_m3s": 50.0,
+                       "warning_threshold_m3s": 150.0, "upstream_source_healthy": True},
         "plcs": {
+            "downstream": {"online": True, "internal": {
+                "sensor_fresh": 1, "plc1_fresh": 1,
+                "source_healthy": 1, "flow_alarm": 0}},
             "temperature": {"online": True, "internal": {"peer_fresh": 1}},
             "spillway": {"online": True, "internal": {"supervisor_fresh": 1}},
             "supervisor": {"online": True, "internal": {
@@ -27,6 +32,21 @@ def sample():
 
 def test_healthy_baseline(sample):
     assert baseline_ready(sample)
+
+
+def test_downstream_sensor_offline_rejected(sample):
+    sample["downstream"]["online"] = False
+    assert not baseline_ready(sample)
+
+
+def test_downstream_stale_data_rejected(sample):
+    sample["plcs"]["downstream"]["internal"]["sensor_fresh"] = 0
+    assert not baseline_ready(sample)
+
+
+def test_downstream_alarm_rejected(sample):
+    sample["plcs"]["downstream"]["internal"]["flow_alarm"] = 1
+    assert not baseline_ready(sample)
 
 
 @pytest.mark.parametrize("part", ("reservoir", "inlet", "plc"))

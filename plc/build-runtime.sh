@@ -50,6 +50,12 @@ case "${PLC_ROLE:-spillway}" in
     harness=supervisor_harness.cpp
     program=SupervisoryController
     ;;
+  downstream)
+    st_name=downstream
+    telemetry_file=telemetry-downstream.cpp
+    harness=downstream_harness.cpp
+    program=DownstreamController
+    ;;
   *) echo "Unknown PLC_ROLE: ${PLC_ROLE}" >&2; exit 1 ;;
 esac
 cp "/lab/${telemetry_file}" core/hardware_layer.cpp

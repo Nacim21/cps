@@ -112,6 +112,42 @@ services:
     ulimits:
       memlock: 0
     restart: unless-stopped
+  downstream-sensor:
+    build:
+      context: .
+      dockerfile: services/downstream/Dockerfile
+    hostname: downstream-sensor
+    environment:
+      MODBUS_HOST: 0.0.0.0
+      MODBUS_PORT: "5020"
+      RESERVOIR_HOST: device
+      RESERVOIR_MODBUS_PORT: "5020"
+      MAX_DISCHARGE_M3S: ${MAX_DISCHARGE_M3S:-200}
+      DOWNSTREAM_WARNING_M3S: ${DOWNSTREAM_WARNING_M3S:-150}
+      DOWNSTREAM_FLOW_BIAS_M3S: ${DOWNSTREAM_FLOW_BIAS_M3S:-0}
+    depends_on: [device]
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.23
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+  openplc-downstream:
+    build:
+      context: .
+      dockerfile: plc/Dockerfile
+      args:
+        PLC_ROLE: downstream
+    hostname: openplc-downstream
+    depends_on: [downstream-sensor, openplc]
+    networks:
+      modbus-lab:
+        ipv4_address: 172.28.10.14
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    ulimits:
+      memlock: 0
+    restart: unless-stopped
   hmi:
     build:
       context: .
@@ -121,10 +157,11 @@ services:
       DEVICE_HOST: device
       INLET_HOST: inlet
       TEMPERATURE_HOST: temperature-sensor
+      DOWNSTREAM_HOST: downstream-sensor
       HMI_HOST: 0.0.0.0
       HMI_PORT: "8080"
       TELEMETRY_PORT: "10555"
-    depends_on: [device, inlet, temperature-sensor, openplc, openplc-inlet, openplc-temp, openplc-supervisor]
+    depends_on: [device, inlet, temperature-sensor, downstream-sensor, openplc, openplc-inlet, openplc-temp, openplc-supervisor, openplc-downstream]
     ports:
       - "127.0.0.1:8080:8080"
     networks:

@@ -16,7 +16,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENTS = ROOT / "captures" / "experiments"
-SERVICES = ("openplc", "openplc-inlet", "openplc-temp", "openplc-supervisor", "device", "inlet", "temperature-sensor", "attacker", "hmi")
+SERVICES = ("openplc", "openplc-inlet", "openplc-temp", "openplc-supervisor", "openplc-downstream", "device", "inlet", "temperature-sensor", "downstream-sensor", "attacker", "hmi")
 
 
 def utc_datetime(value: str) -> datetime:
@@ -66,6 +66,11 @@ def classify_event(item: dict) -> tuple[str, str | None]:
         return "supervisor_decision", None
     if event == "temperature_transition":
         return "temperature_transition", None
+    if event == "downstream_transition":
+        reason = ("Downstream estimated flow warning activated" if item.get("alarm") == 1 else None)
+        return "downstream_transition", reason
+    if event == "upstream_link":
+        return "connectivity", ("Downstream flow source lost" if item.get("connected") is False else None)
     if event == "plc_monitor_started":
         return "monitoring", None
     if event == "st_state":

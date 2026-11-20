@@ -42,7 +42,14 @@
       <div class="divider"></div><div class="row small"><span>Decision</span><strong id="supervisor-reason">--</strong></div>
       <div class="row small"><span>Healthy PLC links</span><strong id="supervisor-peers">--</strong></div>
       <div class="row small"><span>PLC 1 accepted supervisor</span><strong id="supervisor-accepted">--</strong></div></section>
-    <section class="panel wide"><div class="row"><h3>OpenPLC controllers (spillway + inlet + temperature + supervisor)</h3><span class="small muted" id="plc-age">Awaiting telemetry</span></div><div class="metric-grid"><div class="metric"><div class="eyebrow">Scan counter</div><strong id="cycles">--</strong></div><div class="metric"><div class="eyebrow">High water alarm</div><strong id="alarm">--</strong></div><div class="metric"><div class="eyebrow">Gate mismatches</div><strong id="gate-count">--</strong></div><div class="metric"><div class="eyebrow">Inlet mismatches</div><strong id="inlet-count">--</strong></div><div class="metric"><div class="eyebrow">Current inlet mismatch</div><strong id="inlet-mismatch">--</strong></div><div class="metric"><div class="eyebrow">PLC status</div><strong id="plc-status">--</strong></div></div></section>
+    <section class="panel"><h3>Downstream discharge • PLC 5</h3>
+      <div class="eyebrow">Synthetic estimated flow</div><div class="big cyan"><span id="downstream-flow">--</span> m³/s</div>
+      <div class="divider"></div><div class="row small"><span>Warning threshold</span><strong><span id="downstream-limit">--</span> m³/s</strong></div>
+      <div class="row small"><span>Flow alarm</span><strong id="downstream-alarm">--</strong></div>
+      <div class="row small"><span>Source quality</span><strong id="downstream-quality">--</strong></div>
+      <div class="row small"><span>PLC 1 peer freshness</span><strong id="downstream-peer">--</strong></div>
+      <p class="muted small">Educational estimate only. Monitoring-only, no gate control.</p></section>
+    <section class="panel wide"><div class="row"><h3>OpenPLC controllers (spillway + inlet + temperature + supervisor + downstream)</h3><span class="small muted" id="plc-age">Awaiting telemetry</span></div><div class="metric-grid"><div class="metric"><div class="eyebrow">Scan counter</div><strong id="cycles">--</strong></div><div class="metric"><div class="eyebrow">High water alarm</div><strong id="alarm">--</strong></div><div class="metric"><div class="eyebrow">Gate mismatches</div><strong id="gate-count">--</strong></div><div class="metric"><div class="eyebrow">Inlet mismatches</div><strong id="inlet-count">--</strong></div><div class="metric"><div class="eyebrow">Current inlet mismatch</div><strong id="inlet-mismatch">--</strong></div><div class="metric"><div class="eyebrow">PLC status</div><strong id="plc-status">--</strong></div></div></section>
     <section class="panel"><h3>System health</h3><div class="row small"><span>Reservoir Modbus</span><strong id="dev-health">Unknown</strong></div><div class="divider"></div><div class="row small"><span>Inlet Modbus</span><strong id="inlet-health">Unknown</strong></div><div class="divider"></div><div class="row small"><span>PLC telemetry</span><strong id="plc-health">Unknown</strong></div><div class="divider"></div><p class="muted small">This HMI is monitoring-only. All actuator commands originate from the isolated lab and its PLC control logic.</p></section>
   </main><div class="foot"><span>Educational testbed • No industrial equipment attached</span><span>Port 8080 • Localhost only</span></div>
 </div>
@@ -55,12 +62,17 @@ async function update(){
   try{
     const response=await fetch('/api/state',{cache:'no-store'});
     if(!response.ok)throw new Error('Dashboard request failed');
-    const d=await response.json(),r=d.reservoir,i=d.inlet,p=d.plc,t=d.temperature||{},tp=((d.plcs||{}).temperature||{}),ti=tp.internal||{},sp=((d.plcs||{}).supervisor||{}),si=sp.internal||{},internal=p.internal||{};
+    const d=await response.json(),r=d.reservoir,i=d.inlet,p=d.plc,ds=d.downstream||{},dp=((d.plcs||{}).downstream||{}),di=dp.internal||{},t=d.temperature||{},tp=((d.plcs||{}).temperature||{}),ti=tp.internal||{},sp=((d.plcs||{}).supervisor||{}),si=sp.internal||{},internal=p.internal||{};
     set('stamp',new Date(d.timestamp).toLocaleTimeString());
     status('reservoir-online',r.online);
     set('dev-health',r.online?'Connected':'Disconnected');set('inlet-health',i.online?'Connected':'Disconnected');set('plc-health',p.online?'Receiving':'Unavailable');
     if(r.online){set('level',r.level_pct.toFixed(2));set('gate',r.gate_pct);set('gate-desired',r.gate_command_pct);pct('level-fill',r.level_pct);pct('gate-fill',r.gate_pct);history.push(r.level_pct);if(history.length>60)history.shift();const span=Math.max(1,history.length-1);byId('trend').setAttribute('points',history.map((v,j)=>(j*560/span).toFixed(2)+','+(130-v*1.2).toFixed(2)).join(' '))}
     if(i.online){set('inlet',i.valve_pct);set('inlet-desired',i.valve_command_pct);set('flow',i.inflow_pct_per_s.toFixed(3));pct('inlet-fill',i.valve_pct)}
+    set('downstream-flow',ds.online&&ds.upstream_source_healthy?ds.flow_m3s.toFixed(1):'--');
+    set('downstream-limit',ds.online?ds.warning_threshold_m3s.toFixed(1):'--');
+    set('downstream-alarm',dp.online?(di.sensor_fresh?(di.flow_alarm?'ACTIVE':'CLEAR'):'DATA UNAVAILABLE'):'--');
+    set('downstream-quality',dp.online?(di.sensor_fresh?'HEALTHY':'STALE'):'OFFLINE');
+    set('downstream-peer',dp.online?(di.plc1_fresh?'YES':'NO'):'--');
     set('temperature-online',t.online?'Connected':'Disconnected');
     set('temperature-value',t.online?t.temperature_c.toFixed(2):'--');
     set('temperature-alarm',tp.online?(ti.temperature_alarm?'ACTIVE':'CLEAR'):'--');
@@ -74,7 +86,7 @@ async function update(){
     set('gate-mismatch',p.online?(internal.mismatch?'YES':'NO'):'--');set('inlet-mismatch',p.online?(internal.inlet_mismatch?'YES':'NO'):'--');
     set('cycles',p.online?internal.cycle:'--');set('alarm',p.online?(internal.alarm?'ACTIVE':'CLEAR'):'--');set('gate-count',p.online?internal.mismatch_count:'--');set('inlet-count',p.online?internal.inlet_mismatch_count:'--');
     set('plc-status',p.online?'Running':'Offline');set('plc-age',p.age_seconds===null?'No PLC telemetry':p.age_seconds+'s since last PLC update');
-    const healthy=r.online&&i.online&&t.online&&p.online;set('overall',healthy?'Lab connected':'Some services unavailable');byId('overall-dot').className='dot'+(healthy?'':' off');
+    const healthy=r.online&&i.online&&t.online&&ds.online&&ds.upstream_source_healthy&&p.online;set('overall',healthy?'Lab connected':'Some services unavailable');byId('overall-dot').className='dot'+(healthy?'':' off');
   }catch(error){set('overall','Cannot reach HMI API');byId('overall-dot').className='dot off'}
 }
 update();setInterval(update,1500);

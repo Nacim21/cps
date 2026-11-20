@@ -9,6 +9,7 @@ case "${PLC_ROLE:-spillway}" in
   inlet) config=/lab/mbconfig-inlet.cfg ;;
   temperature) config=/lab/mbconfig-temperature.cfg ;;
   supervisor) config=/lab/mbconfig-supervisor.cfg ;;
+  downstream) config=/lab/mbconfig-downstream.cfg ;;
   *) echo "Unrecognized PLC_ROLE" >&2; exit 1 ;;
 esac
 if [ "${PLC_ROLE:-spillway}" = "temperature" ]; then
@@ -18,7 +19,7 @@ fi
 cp "$config" /opt/openplc/webserver/mbconfig.cfg
 cd /opt/openplc/webserver
 printf '{"component":"OPENPLC","event":"runtime_start","plc_role":"%s"}\n' "${PLC_ROLE:-spillway}"
-if [ "${PLC_ROLE:-spillway}" = "spillway" ] || [ "${PLC_ROLE:-spillway}" = "temperature" ] || [ "${PLC_ROLE:-spillway}" = "inlet" ] || [ "${PLC_ROLE:-spillway}" = "supervisor" ]; then
+if [ "${PLC_ROLE:-spillway}" = "spillway" ] || [ "${PLC_ROLE:-spillway}" = "temperature" ] || [ "${PLC_ROLE:-spillway}" = "inlet" ] || [ "${PLC_ROLE:-spillway}" = "supervisor" ] || [ "${PLC_ROLE:-spillway}" = "downstream" ]; then
   sh /lab/start_modbus.sh &
 fi
 exec ./core/openplc
