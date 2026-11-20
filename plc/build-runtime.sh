@@ -25,14 +25,45 @@ printf 'blank_linux\n' > scripts/openplc_driver
 printf '\n' > scripts/ethercat
 # Remove only the disabled DNP3 libraries from the upstream compiler link lines.
 sed -i 's/-lasiodnp3 -lasiopal -lopendnp3 -lopenpal//g' scripts/compile_program.sh
-cp /lab/telemetry.cpp core/hardware_layer.cpp
-cp /lab/spillway.st st_files/spillway.st
-./scripts/compile_program.sh spillway.st
+case "${PLC_ROLE:-spillway}" in
+  spillway)
+    st_name=spillway
+    telemetry_file=telemetry.cpp
+    harness=st_harness.cpp
+    program=SpillwayController
+    ;;
+  inlet)
+    st_name=inlet
+    telemetry_file=telemetry-inlet.cpp
+    harness=inlet_harness.cpp
+    program=InletController
+    ;;
+  temperature)
+    st_name=temperature
+    telemetry_file=telemetry-temperature.cpp
+    harness=temperature_harness.cpp
+    program=TemperatureController
+    ;;
+  supervisor)
+    st_name=supervisor
+    telemetry_file=telemetry-supervisor.cpp
+    harness=supervisor_harness.cpp
+    program=SupervisoryController
+    ;;
+  downstream)
+    st_name=downstream
+    telemetry_file=telemetry-downstream.cpp
+    harness=downstream_harness.cpp
+    program=DownstreamController
+    ;;
+  *) echo "Unknown PLC_ROLE: ${PLC_ROLE}" >&2; exit 1 ;;
+esac
+cp "/lab/${telemetry_file}" core/hardware_layer.cpp
+cp "/lab/${st_name}.st" "st_files/${st_name}.st"
+./scripts/compile_program.sh "${st_name}.st"
 test -x core/openplc
-grep -q 'SpillwayController\|SPILLWAYCONTROLLER' core/POUS.h
-# Exercise the actual generated task at all thresholds during image build.
-# Optimize away unused IEC TCP blocks, whose runtime helpers are not linked
-# into this standalone harness. The native runtime above links its full core.
+grep -qi "${program}" core/POUS.h
+# Compile a role-specific harness from the MatIEC-generated Structured Text.
 g++ -std=gnu++11 -O2 -fpermissive -Wno-narrowing -include sys/types.h -I core/lib -I core \
-    core/Config0.c core/Res0.c /lab/st_harness.cpp -o /tmp/spillway-st-check
-/tmp/spillway-st-check
+    core/Config0.c core/Res0.c "/lab/${harness}" -o /tmp/plc-st-check
+/tmp/plc-st-check

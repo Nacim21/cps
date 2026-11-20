@@ -39,7 +39,7 @@ static unsigned levelBand(unsigned level_raw) {
 
 static void emitTransition(unsigned long long timestamp_ms, const char *signal,
                            unsigned before, unsigned after,
-                           const unsigned values[12]) {
+                           const unsigned values[17]) {
     printf("{\"timestamp_epoch_ms\":%llu,\"component\":\"OPENPLC\","
            "\"event\":\"st_transition\",\"signal\":\"%s\","
            "\"previous\":%u,\"current\":%u,"
@@ -50,9 +50,9 @@ static void emitTransition(unsigned long long timestamp_ms, const char *signal,
 void updateBuffersOut() {
     // OpenPLC calls this after releasing bufferLock, typically once per 50 ms.
     // Only the small snapshot copy is performed under the PLC's buffer mutex.
-    unsigned values[12] = {};
+    unsigned values[17] = {};
     pthread_mutex_lock(&bufferLock);
-    for (int i = 0; i < 12; ++i) {
+    for (int i = 0; i < 17; ++i) {
         if (int_memory[i]) values[i] = *int_memory[i];
     }
     pthread_mutex_unlock(&bufferLock);
@@ -64,7 +64,7 @@ void updateBuffersOut() {
         static_cast<unsigned long long>(now_ts.tv_nsec / 1000000);
 
     static bool initialized = false;
-    static unsigned previous[12] = {};
+    static unsigned previous[17] = {};
     static unsigned previous_band = 0;
     if (!initialized) {
         memcpy(previous, values, sizeof(previous));
@@ -112,9 +112,13 @@ void updateBuffersOut() {
         "\"level_raw\":%u,\"gate\":%u,\"desired\":%u,\"alarm\":%u,"
         "\"mismatch\":%u,\"mismatch_count\":%u,\"cycle\":%u,"
         "\"inlet_desired\":%u,\"inlet_actual\":%u,\"inlet_flow_milli\":%u,"
-        "\"inlet_mismatch\":%u,\"inlet_mismatch_count\":%u}",
+        "\"inlet_mismatch\":%u,\"inlet_mismatch_count\":%u,"
+        "\"local_gate_pct\":%u,\"supervisor_fresh\":%u,"
+        "\"supervisor_requested_pct\":%u,\"supervisor_reason\":%u,"
+        "\"supervisor_stale_ticks\":%u}",
         (long)now_ts.tv_sec, values[0], values[1], values[2], values[3], values[4],
-        values[5], values[6], values[7], values[8], values[9], values[10], values[11]);
+        values[5], values[6], values[7], values[8], values[9], values[10], values[11],
+        values[12], values[13], values[14], values[15], values[16]);
     printf("%s\n", payload);
     fflush(stdout);
     sendToHmi(payload);

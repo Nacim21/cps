@@ -16,9 +16,11 @@ from pymodbus.client import ModbusTcpClient
 
 DEVICE_HOST = os.getenv("DEVICE_HOST", "device")
 INLET_HOST = os.getenv("INLET_HOST", "inlet")
+TEMPERATURE_HOST = os.getenv("TEMPERATURE_HOST", "temperature-sensor")
+DOWNSTREAM_HOST = os.getenv("DOWNSTREAM_HOST", "downstream-sensor")
 TELEMETRY_PORT = int(os.getenv("TELEMETRY_PORT", "10555"))
 STATE_LOCK = Lock()
-LATEST_PLC = {"payload": None, "last_received": 0.0}
+LATEST_PLC = {role: {"payload": None, "last_received": 0.0} for role in ("spillway", "inlet", "temperature", "supervisor", "downstream")}
 STATIC = Path(__file__).with_name("index.html")
 
 
@@ -39,9 +41,48 @@ def read_device(host, number):
         client.close()
 
 
+def read_temperature():
+    """FC04 only. Never send writes to the temperature sensor."""
+    client = ModbusTcpClient(TEMPERATURE_HOST, port=5020, timeout=0.6)
+    try:
+        if not client.connect():
+            return {"online": False, "error": "Connection unavailable"}
+        result = client.read_input_registers(0, count=2, slave=1)
+        if result.isError():
+            return {"online": False, "error": "Modbus exception"}
+        return {"online": True, "temperature_c": result.registers[0] / 100.0,
+                "alarm_threshold_c": result.registers[1] / 100.0}
+    except Exception as exc:
+        return {"online": False, "error": type(exc).__name__}
+    finally:
+        client.close()
+
+
+def read_downstream():
+    """Read-only FC04 query to PLC5's independent synthetic field sensor."""
+    client = ModbusTcpClient(DOWNSTREAM_HOST, port=5020, timeout=0.6)
+    try:
+        if not client.connect():
+            return {"online": False, "error": "Connection unavailable"}
+        r = client.read_input_registers(0, count=5, slave=1)
+        if r.isError() or len(r.registers) != 5:
+            return {"online": False, "error": "Modbus exception"}
+        return {"online": True, "flow_m3s": r.registers[0] / 10.0,
+                "warning_threshold_m3s": r.registers[1] / 10.0,
+                "observed_gate_pct": r.registers[2],
+                "upstream_source_healthy": bool(r.registers[3]),
+                "sensor_heartbeat": r.registers[4]}
+    except Exception as exc:
+        return {"online": False, "error": type(exc).__name__}
+    finally:
+        client.close()
+
+
 def snapshot():
     reservoir_raw = read_device(DEVICE_HOST, 2)
     inlet_raw = read_device(INLET_HOST, 2)
+    temperature = read_temperature()
+    downstream = read_downstream()
     reservoir = {"online": reservoir_raw["online"]}
     inlet = {"online": inlet_raw["online"]}
     if reservoir_raw["online"]:
@@ -53,34 +94,56 @@ def snapshot():
                      inflow_pct_per_s=inlet_raw["inputs"][1] / 1000.0,
                      valve_command_pct=inlet_raw["command"])
     with STATE_LOCK:
-        plc_data = dict(LATEST_PLC["payload"]) if LATEST_PLC["payload"] else None
-        age = monotonic() - LATEST_PLC["last_received"] if plc_data else None
+        data = {role: (dict(LATEST_PLC[role]["payload"]) if LATEST_PLC[role]["payload"] else None)
+                for role in ("spillway", "inlet", "temperature", "supervisor", "downstream")}
+        ages = {role: (monotonic() - LATEST_PLC[role]["last_received"] if data[role] else None)
+                for role in ("spillway", "inlet", "temperature", "supervisor", "downstream")}
+    status = {role: {"online": data[role] is not None and ages[role] < 4.0,
+                     "age_seconds": round(ages[role], 2) if ages[role] is not None else None,
+                     "internal": data[role]} for role in ("spillway", "inlet", "temperature", "supervisor", "downstream")}
+    combined = dict(data["spillway"]) if data["spillway"] else None
+    if combined is not None and data["inlet"] is not None:
+        for key in ("inlet_desired", "inlet_actual", "inlet_flow_milli",
+                    "inlet_mismatch", "inlet_mismatch_count"):
+            combined[key] = data["inlet"].get(key)
+    both_online = all(status[role]["online"] for role in status)
+    observed_ages = [age for age in ages.values() if age is not None]
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "reservoir": reservoir,
         "inlet": inlet,
-        "plc": {"online": plc_data is not None and age < 4.0,
-                "age_seconds": round(age, 2) if age is not None else None,
-                "internal": plc_data},
+        "temperature": temperature,
+        "downstream": downstream,
+        "plc": {"online": both_online,
+                "age_seconds": round(max(observed_ages), 2) if observed_ages else None,
+                "internal": combined},
+        "plcs": status,
     }
 
 
 def receive_plc():
     with socket(AF_INET, SOCK_DGRAM) as sock:
         sock.bind(("0.0.0.0", TELEMETRY_PORT))
+        trusted = {"172.28.10.10": ("spillway", "OPENPLC"),
+                   "172.28.10.11": ("inlet", "OPENPLC_INLET"),
+                   "172.28.10.12": ("temperature", "OPENPLC_TEMP"),
+                   "172.28.10.13": ("supervisor", "OPENPLC_SUPERVISOR"),
+                   "172.28.10.14": ("downstream", "OPENPLC_DOWNSTREAM")}
         while True:
             payload, peer = sock.recvfrom(2048)
-            if peer[0] != "172.28.10.10":  # only the OpenPLC lab container may supply telemetry
+            identity = trusted.get(peer[0])
+            if identity is None:
                 continue
             try:
                 parsed = json.loads(payload.decode("utf-8"))
             except (ValueError, UnicodeError):
                 continue
-            if parsed.get("component") != "OPENPLC" or parsed.get("event") != "st_state":
+            role, component = identity
+            if parsed.get("component") != component or parsed.get("event") != "st_state":
                 continue
             with STATE_LOCK:
-                LATEST_PLC["payload"] = parsed
-                LATEST_PLC["last_received"] = monotonic()
+                LATEST_PLC[role]["payload"] = parsed
+                LATEST_PLC[role]["last_received"] = monotonic()
 
 
 class Handler(BaseHTTPRequestHandler):
